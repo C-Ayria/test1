@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>数字合并小游戏</title>
+<style>
+  :root {
+    --bg1: #fdf3ff;
+    --bg2: #eef6ff;
+    --panel: #ffffff;
+    --grid: #e9e1f5;
+    --cell: #f3eefb;
+    --text: #5b4b6b;
+    --accent: #b89cff;
+    --accent2: #ff9ec4;
+    --shadow: 0 10px 30px rgba(150, 120, 200, 0.18);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    color: var(--text);
+    background: linear-gradient(160deg, var(--bg1), var(--bg2));
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 16px;
+  }
+  .wrap {
+    width: 100%; max-width: 420px;
+    position: relative;
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .title {
+    font-size: 26px; font-weight: 800; letter-spacing: 1px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .scores { display: flex; gap: 10px; }
+  .score-box {
+    background: var(--panel); border-radius: 16px; padding: 8px 14px;
+    text-align: center; box-shadow: var(--shadow); min-width: 70px;
+  }
+  .score-box .label { font-size: 11px; opacity: .65; }
+  .score-box .val { font-size: 20px; font-weight: 800; }
+
+  .stage {
+    position: relative;
+    background: var(--panel);
+    border-radius: 24px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .board {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: var(--grid);
+    border-radius: 18px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+  .cell {
+    background: var(--cell);
+    border-radius: 14px;
+  }
+  .tile {
+    position: absolute;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 14px;
+    font-weight: 800;
+    background: #ffe3e3;
+    color: var(--text);
+    box-shadow: 0 4px 10px rgba(180,150,210,.18);
+    transition: left .12s ease, top .12s ease, transform .12s ease;
+    will-change: transform, left, top;
+  }
+  .tile.tile-new { animation: pop-in .18s ease; }
+  .tile.tile-merged { animation: pop-merge .18s ease; }
+  @keyframes pop-in { 0%{ transform: scale(0);} 100%{ transform: scale(1);} }
+  @keyframes pop-merge { 0%{ transform: scale(1);} 50%{ transform: scale(1.14);} 100%{ transform: scale(1);} }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(3, 56px);
+    gap: 10px;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .ctrl {
+    width: 56px; height: 56px; border: none; cursor: pointer;
+    border-radius: 16px; background: var(--panel); color: var(--text);
+    font-size: 22px; box-shadow: var(--shadow);
+    transition: transform .08s ease;
+  }
+  .ctrl:active { transform: scale(.92); }
+  .ctrl.empty { visibility: hidden; }
+  .hint { text-align: center; font-size: 12px; opacity: .6; margin-top: 12px; }
+
+  /* overlays */
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(253,243,255,.92);
+    backdrop-filter: blur(4px);
+    border-radius: 24px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    z-index: 5;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 {
+    font-size: 30px; margin: 0 0 6px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .overlay p { font-size: 15px; line-height: 1.6; margin: 6px 0; max-width: 280px; }
+  .big-emoji { font-size: 54px; margin-bottom: 8px; }
+  .btn {
+    margin-top: 18px; border: none; cursor: pointer;
+    padding: 13px 34px; border-radius: 999px;
+    font-size: 17px; font-weight: 800; color: #fff;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    box-shadow: 0 8px 20px rgba(184,156,255,.5);
+    transition: transform .08s ease;
+  }
+  .btn:active { transform: scale(.95); }
+  .result-score { font-size: 44px; font-weight: 800; margin: 4px 0; }
+  .comment {
+    font-size: 16px; font-weight: 700;
+    color: var(--accent2);
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">🍬 数字合并</div>
+      <div class="scores">
+        <div class="score-box"><div class="label">分数</div><div class="val" id="score">0</div></div>
+        <div class="score-box"><div class="label">最高</div><div class="val" id="best">0</div></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="board" id="board"></div>
+
+      <!-- 开始界面 -->
+      <div class="overlay" id="startScreen">
+        <div class="big-emoji">🍭</div>
+        <h1>数字合并</h1>
+        <p>滑动格子，让相同的数字撞在一起合并变大。<br/>格子填满又没法合并时，游戏结束～</p>
+        <button class="btn" id="startBtn">开始游戏</button>
+      </div>
+
+      <!-- 结束界面 -->
+      <div class="overlay hidden" id="overScreen">
+        <div class="big-emoji" id="overEmoji">🎉</div>
+        <h1 id="overTitle">游戏结束</h1>
+        <div class="result-score" id="finalScore">0</div>
+        <div class="comment" id="comment">小试身手！</div>
+        <button class="btn" id="restartBtn">再来一局</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl empty"></button>
+      <button class="ctrl" data-dir="up">↑</button>
+      <button class="ctrl empty"></button>
+      <button class="ctrl" data-dir="left">←</button>
+      <button class="ctrl" data-dir="down">↓</button>
+      <button class="ctrl" data-dir="right">→</button>
+    </div>
+    <div class="hint">电脑用 ↑↓←→ 键，手机直接在格子上滑动 ✨</div>
+  </div>
+
+<script>
+(function () {
+  const SIZE = 4;
+  const boardEl = document.getElementById('board');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const startScreen = document.getElementById('startScreen');
+  const overScreen = document.getElementById('overScreen');
+
+  let board = [];
+  let score = 0;
+  let best = Number(localStorage.getItem('merge_best') || 0);
+  let playing = false;
+  let won = false;
+
+  bestEl.textContent = best;
+
+  // 颜色映射：值 -> [背景色, 文字色]
+  const COLORS = {
+    2:    ['#ffe3ec', '#7a4a5c'],
+    4:    ['#ffd6e7', '#7a4a5c'],
+    8:    ['#ffe1b8', '#7a5a3a'],
+    16:   ['#fff3b0', '#7a6a2a'],
+    32:   ['#c7f9d4', '#2f6a47'],
+    64:   ['#b8f2e6', '#23685f'],
+    128:  ['#a0e7e5', '#235c63'],
+    256:  ['#b4a7f0', '#3a2f63'],
+    512:  ['#f0a6e0', '#5e2f57'],
+    1024: ['#ff9ab0', '#fff'],
+    2048: ['#ffb347', '#fff'],
+  };
+  function colorFor(v) {
+    if (COLORS[v]) return COLORS[v];
+    return ['#8a6cff', '#fff']; // 超大数字
+  }
+
+  function emptyBoard() {
+    return Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  }
+
+  function emptyCells() {
+    const list = [];
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (board[r][c] === 0) list.push({ r, c });
+    return list;
+  }
+
+  function spawnRandom() {
+    const cells = emptyCells();
+    if (!cells.length) return null;
+    const { r, c } = cells[Math.floor(Math.random() * cells.length)];
+    board[r][c] = Math.random() < 0.9 ? 2 : 4;
+    return { r, c };
+  }
+
+  // 方向 -> 每条线上的格子坐标（按"滑向 index 0"的顺序排列）
+  function lineCoords(dir) {
+    const lines = [];
+    for (let i = 0; i < SIZE; i++) {
+      const line = [];
+      for (let j = 0; j < SIZE; j++) {
+        if (dir === 'left')  line.push({ r: i, c: j });
+        if (dir === 'right') line.push({ r: i, c: SIZE - 1 - j });
+        if (dir === 'up')    line.push({ r: j, c: i });
+        if (dir === 'down')  line.push({ r: SIZE - 1 - j, c: i });
+      }
+      lines.push(line);
+    }
+    return lines;
+  }
+
+  function move(dir) {
+    const lines = lineCoords(dir);
+    let moved = false;
+    let merged = [];
+    for (const line of lines) {
+      const vals = line.map(p => board[p.r][p.c]);
+      const arr = vals.filter(v => v > 0);
+      const res = [];
+      const mergeIdx = [];
+      for (let i = 0; i < arr.length; i++) {
+        if (i + 1 < arr.length && arr[i] === arr[i + 1]) {
+          const val = arr[i] * 2;
+          res.push(val);
+          mergeIdx.push(res.length - 1);
+          score += val;
+          i++;
+        } else {
+          res.push(arr[i]);
+        }
+      }
+      while (res.length < SIZE) res.push(0);
+      for (let i = 0; i < SIZE; i++) {
+        const p = line[i];
+        if (board[p.r][p.c] !== res[i]) moved = true;
+        board[p.r][p.c] = res[i];
+      }
+      mergeIdx.forEach(i => merged.push(line[i]));
+    }
+    return { moved, merged };
+  }
+
+  function canMove() {
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++) {
+        if (board[r][c] === 0) return true;
+        if (c + 1 < SIZE && board[r][c] === board[r][c + 1]) return true;
+        if (r + 1 < SIZE && board[r][c] === board[r + 1][c]) return true;
+      }
+    return false;
+  }
+
+  function render(newCell, mergedCells) {
+    const rect = boardEl.getBoundingClientRect();
+    const pad = 12;
+    const gap = 12;
+    const cell = (rect.width - pad * 2 - gap * (SIZE - 1)) / SIZE;
+    boardEl.querySelectorAll('.tile').forEach(t => t.remove());
+    const newSet = newCell ? `${newCell.r},${newCell.c}` : '';
+    const mergeSet = new Set((mergedCells || []).map(p => `${p.r},${p.c}`));
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const v = board[r][c];
+        if (v === 0) continue;
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        const [bg, fg] = colorFor(v);
+        tile.style.background = bg;
+        tile.style.color = fg;
+        tile.style.width = cell + 'px';
+        tile.style.height = cell + 'px';
+        tile.style.left = (pad + c * (cell + gap)) + 'px';
+        tile.style.top = (pad + r * (cell + gap)) + 'px';
+        tile.style.fontSize = (v >= 1024 ? cell * 0.34 : v >= 128 ? cell * 0.42 : cell * 0.5) + 'px';
+        tile.textContent = v;
+        const key = `${r},${c}`;
+        if (key === newSet) tile.classList.add('tile-new');
+        if (mergeSet.has(key)) tile.classList.add('tile-merged');
+        boardEl.appendChild(tile);
+      }
+    }
+    scoreEl.textContent = score;
+    if (score > best) {
+      best = score;
+      bestEl.textContent = best;
+      localStorage.setItem('merge_best', best);
+    }
+  }
+
+  function commentFor(s) {
+    if (s >= 10000) return '合并之王，封神操作！👑';
+    if (s >= 5000)  return '数字魔法师，太强了！✨';
+    if (s >= 2000)  return '合并高手，稳扎稳打！💪';
+    if (s >= 800)   return '渐入佳境，手感不错～🌟';
+    if (s >= 300)   return '有模有样，继续加油！🌈';
+    return '小试身手，下次更棒！🌸';
+  }
+
+  function gameOver() {
+    playing = false;
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('comment').textContent = commentFor(score);
+    overScreen.classList.remove('hidden');
+  }
+
+  function step(dir) {
+    if (!playing) return;
+    const { moved, merged } = move(dir);
+    if (!moved) return;
+    const newCell = spawnRandom();
+    render(newCell, merged);
+    if (!won && board.flat().includes(2048)) {
+      won = true;
+      document.getElementById('overEmoji').textContent = '🏆';
+      document.getElementById('overTitle').textContent = '凑出 2048 啦！';
+    }
+    if (!canMove()) gameOver();
+  }
+
+  function startGame() {
+    board = emptyBoard();
+    score = 0;
+    won = false;
+    playing = true;
+    startScreen.classList.add('hidden');
+    overScreen.classList.add('hidden');
+    const a = spawnRandom();
+    const b = spawnRandom();
+    render(a, []);
+  }
+
+  // 键盘
+  window.addEventListener('keydown', (e) => {
+    const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+    if (map[e.key]) { e.preventDefault(); step(map[e.key]); }
+  });
+
+  // 屏幕按钮
+  document.querySelectorAll('.ctrl[data-dir]').forEach(btn => {
+    btn.addEventListener('click', () => step(btn.dataset.dir));
+  });
+
+  // 触摸滑动
+  let touchStart = null;
+  boardEl.addEventListener('touchstart', (e) => {
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  boardEl.addEventListener('touchend', (e) => {
+    if (!touchStart) return;
+    const dx = e.changedTouches[0].clientX - touchStart.x;
+    const dy = e.changedTouches[0].clientY - touchStart.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { touchStart = null; return; }
+    if (Math.abs(dx) > Math.abs(dy)) step(dx > 0 ? 'right' : 'left');
+    else step(dy > 0 ? 'down' : 'up');
+    touchStart = null;
+  }, { passive: true });
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('restartBtn').addEventListener('click', startGame);
+
+  // 初始静态背景格
+  for (let i = 0; i < SIZE * SIZE; i++) {
+    const d = document.createElement('div');
+    d.className = 'cell';
+    boardEl.appendChild(d);
+  }
+})();
+</script>
+</body>
+</html>
